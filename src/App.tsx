@@ -7,6 +7,7 @@ import {
   type ButtonHTMLAttributes,
   type ErrorInfo,
   type FormEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
 import {
@@ -29,6 +30,8 @@ import {
   MessageCircleMore,
   MoreHorizontal,
   Palette,
+  Pin,
+  PinOff,
   Plus,
   Send,
   Settings,
@@ -51,7 +54,9 @@ import {
   isPersistentStorage,
   normalizeAlias,
   requestPersistentStorage,
+  setChannelPinned,
   setPreference,
+  sortChannels,
   updateChannel,
   type Channel,
   type Message,
@@ -315,7 +320,7 @@ function ChannelForm({
 function ChannelsPage() {
   const channels =
     useLiveQuery(
-      () => db.channels.orderBy("updatedAt").reverse().toArray(),
+      async () => sortChannels(await db.channels.toArray()),
       [],
     ) ?? [];
   const defaultSelfProfile = useLiveQuery(
@@ -323,6 +328,7 @@ function ChannelsPage() {
     [],
   );
   const [editing, setEditing] = useState<Channel | "new" | null>(null);
+  const [actionsChannel, setActionsChannel] = useState<Channel | null>(null);
 
   return (
     <Shell>
@@ -357,6 +363,7 @@ function ChannelsPage() {
                 key={channel.id}
                 channel={channel}
                 onEdit={() => setEditing(channel)}
+                onLongPress={() => setActionsChannel(channel)}
               />
             ))}
           </div>
@@ -369,18 +376,64 @@ function ChannelsPage() {
           onClose={() => setEditing(null)}
         />
       )}
+      {actionsChannel && (
+        <ChannelActions
+          channel={actionsChannel}
+          onClose={() => setActionsChannel(null)}
+        />
+      )}
     </Shell>
+  );
+}
+
+function ChannelActions({
+  channel,
+  onClose,
+}: {
+  channel: Channel;
+  onClose: () => void;
+}) {
+  async function togglePin() {
+    await setChannelPinned(channel.id, !channel.pinnedAt);
+    onClose();
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <section
+        className="sheet action-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="channel-actions-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="sheet-header">
+          <h2 id="channel-actions-title">{channel.name}</h2>
+          <IconButton label="Close" onClick={onClose}>
+            <X />
+          </IconButton>
+        </div>
+        <button className="action-row" onClick={() => void togglePin()}>
+          {channel.pinnedAt ? <PinOff /> : <Pin />}
+          {channel.pinnedAt ? "Unpin chat" : "Pin chat"}
+        </button>
+      </section>
+    </div>
   );
 }
 
 function ChannelRow({
   channel,
   onEdit,
+  onLongPress,
 }: {
   channel: Channel;
   onEdit: () => void;
+  onLongPress: () => void;
 }) {
   const navigate = useNavigate();
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressClick = useRef(false);
   const lastMessage = useLiveQuery(
     async () =>
       (
@@ -391,12 +444,38 @@ function ChannelRow({
       ).at(-1),
     [channel.id],
   );
+
+  function startLongPress(event: ReactPointerEvent<HTMLElement>) {
+    if ((event.target as HTMLElement).closest("button")) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    longPressTimer.current = setTimeout(() => {
+      suppressClick.current = true;
+      onLongPress();
+    }, 550);
+  }
+
+  function clearLongPress() {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+  }
+
   return (
     <article
       className="channel-row"
       role="link"
       tabIndex={0}
-      onClick={() => navigate(`/chat/${channel.id}`)}
+      onPointerDown={startLongPress}
+      onPointerUp={clearLongPress}
+      onPointerCancel={clearLongPress}
+      onPointerLeave={clearLongPress}
+      onClick={(event) => {
+        if (suppressClick.current) {
+          suppressClick.current = false;
+          event.preventDefault();
+          return;
+        }
+        navigate(`/chat/${channel.id}`);
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter") navigate(`/chat/${channel.id}`);
       }}
@@ -404,7 +483,14 @@ function ChannelRow({
       <Avatar profile={channel.otherProfile} size="large" />
       <div className="channel-copy">
         <div>
-          <h2>{channel.name}</h2>
+          <h2>
+            {channel.pinnedAt && (
+              <span className="pin-indicator" aria-label="Pinned">
+                📌
+              </span>
+            )}
+            {channel.name}
+          </h2>
           <time>
             {lastMessage ? formatListTime(lastMessage.createdAt) : ""}
           </time>

@@ -41,7 +41,6 @@ export interface ReadableExport {
       timestamp: string
       editedAt?: string
       speaker: 'self' | 'other'
-      speakerName: string
       content: string
     }>
   }>
@@ -144,9 +143,6 @@ export async function createReadableExport(
           timestamp: message.createdAt,
           editedAt: message.updatedAt,
           speaker: message.side,
-          speakerName: message.side === 'self'
-            ? channel.selfProfile.name
-            : channel.otherProfile.name,
           content: message.content,
         })),
       })),

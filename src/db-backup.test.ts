@@ -13,7 +13,9 @@ import {
   dispatchMessages,
   editMessage,
   getPreference,
+  setChannelPinned,
   setPreference,
+  sortChannels,
 } from './db'
 
 afterEach(async () => {
@@ -74,6 +76,34 @@ describe('storage and backups', () => {
       .toEqual({ name: 'Old name' })
   })
 
+  it('sorts pinned chats first without changing message recency', async () => {
+    const older = await createChannel({
+      name: 'Older',
+      alias: 'older',
+      selfProfile: { name: 'Me' },
+      otherProfile: { name: 'Other' },
+    })
+    const newer = await createChannel({
+      name: 'Newer',
+      alias: 'newer',
+      selfProfile: { name: 'Me' },
+      otherProfile: { name: 'Other' },
+    })
+    await db.channels.update(older.id, { updatedAt: '2026-01-01T00:00:00.000Z' })
+    await db.channels.update(newer.id, { updatedAt: '2026-02-01T00:00:00.000Z' })
+
+    await setChannelPinned(older.id, true)
+    const pinned = await db.channels.toArray()
+    expect(sortChannels(pinned).map((channel) => channel.id))
+      .toEqual([older.id, newer.id])
+    expect((await db.channels.get(older.id))?.updatedAt)
+      .toBe('2026-01-01T00:00:00.000Z')
+
+    await setChannelPinned(older.id, false)
+    expect(sortChannels(await db.channels.toArray()).map((channel) => channel.id))
+      .toEqual([newer.id, older.id])
+  })
+
   it('filters a channel export by inclusive local month range', async () => {
     const channel = await createChannel({
       name: 'Reading',
@@ -108,11 +138,11 @@ describe('storage and backups', () => {
       participants: { self: 'Camile', other: 'Analyst' },
       messages: [{
         speaker: 'other',
-        speakerName: 'Analyst',
         content: 'Plain text thought',
       }],
     })
     expect(serialized).not.toContain('base64')
+    expect(serialized).not.toContain('speakerName')
     expect(serialized).not.toContain(channel.id)
   })
 

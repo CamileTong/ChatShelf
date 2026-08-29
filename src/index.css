@@ -98,10 +98,12 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary); box-sh
 .channel-row {
   min-height: 80px; display: flex; align-items: center; gap: 13px; padding: 10px 2px;
   width: 100%; min-width: 0; overflow: hidden; border-bottom: 1px solid var(--border); cursor: pointer;
+  -webkit-touch-callout: none; user-select: none;
 }
 .channel-copy { width: 0; min-width: 0; flex: 1 1 0; overflow: hidden; }
 .channel-copy > div { min-width: 0; display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
 .channel-copy h2 { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pin-indicator { margin-right: 5px; font-size: .82em; }
 .channel-copy time { font-size: .72rem; color: var(--muted); white-space: nowrap; }
 .channel-copy p { display: block; width: 100%; max-width: 100%; color: var(--muted); font-size: .88rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; margin-top: 4px; }
 .avatar { border-radius: 50%; object-fit: cover; flex: 0 0 auto; display: inline-grid; place-items: center; background: var(--primary-soft); color: var(--primary); font-weight: 800; }
@@ -116,6 +118,8 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary); box-sh
 }
 .sheet-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .sheet form { display: grid; gap: 15px; }
+.action-sheet { display: grid; gap: 4px; }
+.action-row { width: 100%; min-height: 52px; border: 0; border-radius: 14px; padding: 12px 14px; background: var(--surface-2); display: flex; align-items: center; gap: 11px; font-weight: 700; text-align: left; }
 .input-prefix { display: flex; align-items: center; background: var(--surface-2); border: 1px solid var(--border); border-radius: 13px; overflow: hidden; }
 .input-prefix span { padding-left: 13px; font-size: 1.05rem; }
 .input-prefix input { border: 0; border-radius: 0; padding-left: 2px; }

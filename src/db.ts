@@ -16,6 +16,7 @@ export interface Channel {
   otherProfile: Profile
   createdAt: string
   updatedAt: string
+  pinnedAt?: string
 }
 
 export interface Message {
@@ -79,6 +80,18 @@ export async function updateChannel(
     ...patch,
     alias: normalizeAlias(patch.alias),
     updatedAt: now(),
+  })
+}
+
+export async function setChannelPinned(id: string, pinned: boolean) {
+  await db.channels.update(id, { pinnedAt: pinned ? now() : undefined })
+}
+
+export function sortChannels(channels: Channel[]) {
+  return [...channels].sort((a, b) => {
+    if (Boolean(a.pinnedAt) !== Boolean(b.pinnedAt)) return a.pinnedAt ? -1 : 1
+    if (a.pinnedAt && b.pinnedAt) return b.pinnedAt.localeCompare(a.pinnedAt)
+    return b.updatedAt.localeCompare(a.updatedAt)
   })
 }
 
