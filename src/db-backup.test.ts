@@ -1,6 +1,11 @@
 import 'fake-indexeddb/auto'
 import { afterEach, describe, expect, it } from 'vitest'
-import { createBackup, importBackup, validateBackup } from './backup'
+import {
+  createBackup,
+  createReadableExport,
+  importBackup,
+  validateBackup,
+} from './backup'
 import { createChannel, createMessage, db, dispatchMessages, editMessage } from './db'
 
 afterEach(async () => {
@@ -56,6 +61,31 @@ describe('storage and backups', () => {
 
     const backup = await createBackup({ channelId: channel.id, fromMonth: '2026-02', toMonth: '2026-02' })
     expect(backup.messages.map((message) => message.id)).toEqual(['feb'])
+  })
+
+  it('creates a readable export without avatars or internal IDs', async () => {
+    const channel = await createChannel({
+      name: 'Journal',
+      alias: 'journal',
+      selfProfile: { name: 'Camile', avatar: 'data:image/jpeg;base64,secret-avatar' },
+      otherProfile: { name: 'Analyst', avatar: 'data:image/jpeg;base64,other-avatar' },
+    })
+    await createMessage(channel.id, 'Plain text thought', 'other')
+
+    const report = await createReadableExport({ channelId: channel.id })
+    const serialized = JSON.stringify(report)
+
+    expect(report.chats[0]).toMatchObject({
+      name: 'Journal',
+      participants: { self: 'Camile', other: 'Analyst' },
+      messages: [{
+        speaker: 'other',
+        speakerName: 'Analyst',
+        content: 'Plain text thought',
+      }],
+    })
+    expect(serialized).not.toContain('base64')
+    expect(serialized).not.toContain(channel.id)
   })
 
   it('validates and restores a portable backup', async () => {

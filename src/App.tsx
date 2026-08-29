@@ -60,10 +60,13 @@ import {
 import { parseChatInput, parseConsoleInput } from "./commands";
 import {
   createBackup,
+  createReadableExport,
   importBackup,
   readBackupFile,
   shareBackup,
+  shareReadableExport,
 } from "./backup";
+import { formatSmartDate } from "./date";
 
 const palettes = [
   { id: "plum", label: "Plum", colors: ["#8366c8", "#dfd1f8"] },
@@ -576,11 +579,7 @@ function MessageBubble({
     <>
       {showDate && (
         <div className="date-divider">
-          <span>
-            {new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
-              new Date(message.createdAt),
-            )}
-          </span>
+          <span>{formatSmartDate(message.createdAt)}</span>
         </div>
       )}
       <article className={`message-row ${message.side}`}>
@@ -747,6 +746,21 @@ function SettingsPage() {
         setStatus("Could not create the backup.");
     }
   }
+  async function exportReadable() {
+    try {
+      await shareReadableExport(
+        await createReadableExport({
+          channelId: channelId || undefined,
+          fromMonth: channelId ? fromMonth || undefined : undefined,
+          toMonth: channelId ? toMonth || undefined : undefined,
+        }),
+      );
+      setStatus("Readable export ready.");
+    } catch (error) {
+      if ((error as Error).name !== "AbortError")
+        setStatus("Could not create the readable export.");
+    }
+  }
   async function restore(file: File | undefined) {
     if (!file) return;
     try {
@@ -843,6 +857,12 @@ function SettingsPage() {
           )}
           <button className="primary full" onClick={() => void exportData()}>
             <Download /> Export JSON
+          </button>
+          <button
+            className="secondary full"
+            onClick={() => void exportReadable()}
+          >
+            <Share2 /> Export Readable
           </button>
           <button
             className="secondary full"

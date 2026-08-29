@@ -20,6 +20,33 @@ export interface ExportOptions {
   toMonth?: string
 }
 
+export interface ReadableExport {
+  format: 'chatshelf-readable'
+  version: 1
+  exportedAt: string
+  range: {
+    type: 'all' | 'channel'
+    channel?: string
+    fromMonth?: string
+    toMonth?: string
+  }
+  chats: Array<{
+    name: string
+    alias: string
+    participants: {
+      self: string
+      other: string
+    }
+    messages: Array<{
+      timestamp: string
+      editedAt?: string
+      speaker: 'self' | 'other'
+      speakerName: string
+      content: string
+    }>
+  }>
+}
+
 const localMonthStart = (month: string) => {
   const [year, monthIndex] = month.split('-').map(Number)
   return new Date(year, monthIndex - 1, 1).getTime()
@@ -72,6 +99,74 @@ export async function shareBackup(backup: BackupFile) {
 
   if (navigator.share && navigator.canShare?.({ files: [file] })) {
     await navigator.share({ files: [file], title: 'ChatShelf backup' })
+    return
+  }
+
+  const url = URL.createObjectURL(file)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+export async function createReadableExport(
+  options: ExportOptions = {},
+): Promise<ReadableExport> {
+  const backup = await createBackup(options)
+  const messagesByChannel = new Map<string, Message[]>()
+  for (const message of backup.messages) {
+    const messages = messagesByChannel.get(message.channelId) ?? []
+    messages.push(message)
+    messagesByChannel.set(message.channelId, messages)
+  }
+
+  return {
+    format: 'chatshelf-readable',
+    version: 1,
+    exportedAt: backup.exportedAt,
+    range: {
+      type: backup.scope.type,
+      channel: backup.scope.type === 'channel' ? backup.channels[0]?.name : undefined,
+      fromMonth: backup.scope.fromMonth,
+      toMonth: backup.scope.toMonth,
+    },
+    chats: [...backup.channels]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((channel) => ({
+        name: channel.name,
+        alias: channel.alias,
+        participants: {
+          self: channel.selfProfile.name,
+          other: channel.otherProfile.name,
+        },
+        messages: (messagesByChannel.get(channel.id) ?? []).map((message) => ({
+          timestamp: message.createdAt,
+          editedAt: message.updatedAt,
+          speaker: message.side,
+          speakerName: message.side === 'self'
+            ? channel.selfProfile.name
+            : channel.otherProfile.name,
+          content: message.content,
+        })),
+      })),
+  }
+}
+
+export async function shareReadableExport(report: ReadableExport) {
+  const date = report.exportedAt.slice(0, 10)
+  const channel = report.range.channel
+    ?.toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-|-$/g, '')
+  const suffix = report.range.type === 'all' ? 'all' : channel || 'channel'
+  const filename = `chatshelf-readable-${suffix}-${date}.json`
+  const file = new File([JSON.stringify(report, null, 2)], filename, {
+    type: 'application/json;charset=utf-8',
+  })
+
+  if (navigator.share && navigator.canShare?.({ files: [file] })) {
+    await navigator.share({ files: [file], title: 'ChatShelf readable export' })
     return
   }
 
