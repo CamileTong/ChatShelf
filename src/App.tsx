@@ -23,7 +23,6 @@ import {
   ArrowLeft,
   BookOpen,
   Check,
-  ChevronRight,
   Download,
   Edit3,
   ImagePlus,
@@ -36,6 +35,7 @@ import {
   Share2,
   Trash2,
   Upload,
+  UserRound,
   X,
 } from "lucide-react";
 import {
@@ -48,6 +48,7 @@ import {
   editMessage,
   getPreference,
   imageFileToAvatar,
+  isPersistentStorage,
   normalizeAlias,
   requestPersistentStorage,
   setPreference,
@@ -75,6 +76,7 @@ const palettes = [
   { id: "sunset", label: "Sunset", colors: ["#a32e1c", "#e7cec9"] },
 ];
 const EMPTY_CHANNELS: Channel[] = [];
+const DEFAULT_SELF_PROFILE: Profile = { name: "Me" };
 
 function Avatar({
   profile,
@@ -167,15 +169,17 @@ function Shell({ children }: { children: ReactNode }) {
 
 function ChannelForm({
   channel,
+  defaultSelfProfile = DEFAULT_SELF_PROFILE,
   onClose,
 }: {
   channel?: Channel;
+  defaultSelfProfile?: Profile;
   onClose: () => void;
 }) {
   const [name, setName] = useState(channel?.name ?? "");
   const [alias, setAlias] = useState(channel?.alias ?? "");
   const [selfProfile, setSelfProfile] = useState<Profile>(
-    channel?.selfProfile ?? { name: "Me" },
+    channel?.selfProfile ?? defaultSelfProfile,
   );
   const [otherProfile, setOtherProfile] = useState<Profile>(
     channel?.otherProfile ?? { name: "Coach" },
@@ -314,6 +318,10 @@ function ChannelsPage() {
       () => db.channels.orderBy("updatedAt").reverse().toArray(),
       [],
     ) ?? [];
+  const defaultSelfProfile = useLiveQuery(
+    () => getPreference<Profile>("defaultSelfProfile", DEFAULT_SELF_PROFILE),
+    [],
+  );
   const [editing, setEditing] = useState<Channel | "new" | null>(null);
 
   return (
@@ -357,6 +365,7 @@ function ChannelsPage() {
       {editing && (
         <ChannelForm
           channel={editing === "new" ? undefined : editing}
+          defaultSelfProfile={defaultSelfProfile}
           onClose={() => setEditing(null)}
         />
       )}
@@ -718,7 +727,32 @@ function SettingsPage() {
   const [fromMonth, setFromMonth] = useState("");
   const [toMonth, setToMonth] = useState("");
   const [status, setStatus] = useState("");
+  const [defaultProfile, setDefaultProfile] = useState<Profile>(
+    DEFAULT_SELF_PROFILE,
+  );
+  const [profileStatus, setProfileStatus] = useState("");
+  const [storageState, setStorageState] = useState<
+    "checking" | "protected" | "not-guaranteed" | "unsupported"
+  >("checking");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    void getPreference<Profile>(
+      "defaultSelfProfile",
+      DEFAULT_SELF_PROFILE,
+    ).then(setDefaultProfile);
+    void requestPersistentStorage()
+      .then(() => isPersistentStorage())
+      .then((isPersistent) => {
+        setStorageState(
+          isPersistent === null
+            ? "unsupported"
+            : isPersistent
+              ? "protected"
+              : "not-guaranteed",
+        );
+      });
+  }, []);
 
   async function choosePalette(value: string) {
     setPalette(value);
@@ -760,6 +794,22 @@ function SettingsPage() {
       if ((error as Error).name !== "AbortError")
         setStatus("Could not create the readable export.");
     }
+  }
+  async function chooseDefaultAvatar(file: File | undefined) {
+    if (!file) return;
+    const avatar = await imageFileToAvatar(file);
+    setDefaultProfile((profile) => ({ ...profile, avatar }));
+    setProfileStatus("");
+  }
+  async function saveDefaultProfile() {
+    if (!defaultProfile.name.trim()) {
+      setProfileStatus("A name is required.");
+      return;
+    }
+    const profile = { ...defaultProfile, name: defaultProfile.name.trim() };
+    await setPreference("defaultSelfProfile", profile);
+    setDefaultProfile(profile);
+    setProfileStatus("Default saved. Existing chats were not changed.");
   }
   async function restore(file: File | undefined) {
     if (!file) return;
@@ -815,6 +865,59 @@ function SettingsPage() {
               </button>
             ))}
           </div>
+        </SettingsSection>
+        <SettingsSection icon={<UserRound />} title="Default My Side">
+          <p className="section-note">
+            Used when creating new chats. Existing chats will not be changed.
+          </p>
+          <div className="default-profile-editor">
+            <label className="avatar-picker">
+              <Avatar profile={defaultProfile} size="large" />
+              <span>
+                <ImagePlus size={16} /> Change photo
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(event) =>
+                  void chooseDefaultAvatar(event.target.files?.[0])
+                }
+              />
+            </label>
+            <label>
+              Name
+              <input
+                value={defaultProfile.name}
+                onChange={(event) => {
+                  setDefaultProfile((profile) => ({
+                    ...profile,
+                    name: event.target.value,
+                  }));
+                  setProfileStatus("");
+                }}
+              />
+            </label>
+          </div>
+          {defaultProfile.avatar && (
+            <button
+              className="text-button danger"
+              onClick={() => {
+                setDefaultProfile(({ name }) => ({ name }));
+                setProfileStatus("");
+              }}
+            >
+              Remove default photo
+            </button>
+          )}
+          <button
+            className="secondary full"
+            onClick={() => void saveDefaultProfile()}
+          >
+            <Check /> Save default
+          </button>
+          {profileStatus && (
+            <p className="status-message">{profileStatus}</p>
+          )}
         </SettingsSection>
         <SettingsSection icon={<Download />} title="Backup & export">
           <p className="section-note">
@@ -887,18 +990,21 @@ function SettingsPage() {
               regularly.
             </p>
           </div>
-          <button
-            className="secondary full"
-            onClick={async () =>
-              setStatus(
-                (await requestPersistentStorage())
-                  ? "Persistent storage is enabled."
-                  : "The browser could not guarantee persistent storage.",
-              )
-            }
-          >
-            <ChevronRight /> Request persistent storage
-          </button>
+          <div className="storage-status-row">
+            <span className={`storage-dot ${storageState}`} />
+            <div>
+              <strong>Storage protection</strong>
+              <p>
+                {storageState === "checking" && "Checking browser status…"}
+                {storageState === "protected" &&
+                  "Protected from automatic browser eviction."}
+                {storageState === "not-guaranteed" &&
+                  "The browser does not guarantee protection."}
+                {storageState === "unsupported" &&
+                  "Status is unavailable in this browser."}
+              </p>
+            </div>
+          </div>
         </SettingsSection>
         <p className="app-version">ChatShelf · Private by design · v1</p>
       </section>

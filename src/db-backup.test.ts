@@ -6,7 +6,15 @@ import {
   importBackup,
   validateBackup,
 } from './backup'
-import { createChannel, createMessage, db, dispatchMessages, editMessage } from './db'
+import {
+  createChannel,
+  createMessage,
+  db,
+  dispatchMessages,
+  editMessage,
+  getPreference,
+  setPreference,
+} from './db'
 
 afterEach(async () => {
   await Promise.all([db.channels.clear(), db.messages.clear(), db.preferences.clear()])
@@ -44,6 +52,26 @@ describe('storage and backups', () => {
     expect(new Set(messages.map((message) => message.dispatchGroupId)).size).toBe(1)
     expect(await db.messages.count()).toBe(2)
     expect(messages.every((message) => message.side === 'other')).toBe(true)
+  })
+
+  it('stores a default profile without changing existing chats', async () => {
+    const existing = await createChannel({
+      name: 'Fitness',
+      alias: 'fitness',
+      selfProfile: { name: 'Old name' },
+      otherProfile: { name: 'Coach' },
+    })
+    const defaultProfile = {
+      name: 'Camile',
+      avatar: 'data:image/jpeg;base64,default-avatar',
+    }
+
+    await setPreference('defaultSelfProfile', defaultProfile)
+
+    expect(await getPreference('defaultSelfProfile', { name: 'Me' }))
+      .toEqual(defaultProfile)
+    expect((await db.channels.get(existing.id))?.selfProfile)
+      .toEqual({ name: 'Old name' })
   })
 
   it('filters a channel export by inclusive local month range', async () => {

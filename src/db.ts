@@ -154,6 +154,11 @@ export async function requestPersistentStorage() {
   return navigator.storage.persist()
 }
 
+export async function isPersistentStorage() {
+  if (!navigator.storage?.persisted) return null
+  return navigator.storage.persisted()
+}
+
 export function imageFileToAvatar(file: File, size = 256): Promise<string> {
   return new Promise((resolve, reject) => {
     const image = new Image()

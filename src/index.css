@@ -75,6 +75,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary); box-sh
 }
 .primary { background: var(--primary); color: var(--primary-text); }
 .secondary { background: var(--surface-2); border: 1px solid var(--border); }
+.text-button { justify-self: start; border: 0; background: transparent; padding: 2px 0; font-size: .8rem; font-weight: 700; }
 .full { width: 100%; }
 .danger { color: var(--danger) !important; }
 
@@ -184,8 +185,14 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary); box-sh
 .swatches i { width: 17px; height: 29px; border-radius: 6px; border: 2px solid var(--surface); margin-left: -5px; }
 .swatches i:first-child { margin-left: 0; }
 .month-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.default-profile-editor { display: grid; grid-template-columns: 92px 1fr; align-items: center; gap: 14px; }
 .storage-warning { border-left: 3px solid var(--primary); padding-left: 12px; }
 .storage-warning p { color: var(--muted); font-size: .82rem; margin-top: 3px; }
+.storage-status-row { display: flex; align-items: center; gap: 11px; padding-top: 2px; }
+.storage-status-row p { color: var(--muted); font-size: .78rem; margin-top: 2px; }
+.storage-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; background: var(--muted); }
+.storage-dot.protected { background: #2e7d32; }
+.storage-dot.not-guaranteed { background: #b26a00; }
 .app-version { text-align: center; color: var(--muted); font-size: .72rem; padding: 8px; }
 .center-screen { min-height: 100svh; display: grid; place-items: center; text-align: center; gap: 10px; }
 .center-screen > div { display: grid; gap: 14px; padding: 24px; }
